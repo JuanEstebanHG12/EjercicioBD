@@ -1,9 +1,8 @@
 import { env } from "./env.js";
 
 import pg from 'pg';
-import fs from 'fs';
-import csv from 'csv-parser';
-import { queryTables } from "../services/migrateService.js";
+
+import { queryData, queryTables } from "../services/migrateService.js";
 
 const { Pool } = pg;
 
@@ -14,13 +13,18 @@ export const pool = new Pool({
 async function createTables() {
    try {
     await queryTables()
+    await initialdata()
    } catch (error) {
     console.error(error);
    }
 }
 
-function initialdata(params) {
-
+async function initialdata() {
+    try {
+        await queryData()
+    } catch (error) {
+        console.error(error);
+    }
 }
 
 export { createTables, initialdata }
