@@ -1,6 +1,9 @@
-/* export async function queryTables() {
- try {
-    await client.query('BEGIN')
+import { pool } from "../config/postgres.js"
+
+export async function queryTables() {
+    const client = await pool.connect()
+    try {
+        await client.query('BEGIN')
 
         //create table 
         await client.query(`
@@ -71,7 +74,9 @@ ON UPDATE NO ACTION ON DELETE NO ACTION
 );
     `)
         await client.query('COMMIT')
- } catch (error) {
-    await client.query('ROLLBACK')
- }   
-} */
+    } catch (error) {
+        await client.query('ROLLBACK')
+    }finally{
+        client.release()
+    }
+}
