@@ -13,18 +13,17 @@ export const pool = new Pool({
 async function createTables() {
    try {
     await queryTables()
-    await initialdata()
    } catch (error) {
     console.error(error);
    }
 }
 
-async function initialdata() {
+async function migrateData() {
     try {
-        await queryData()
+        return await queryData()
     } catch (error) {
         console.error(error);
     }
 }
 
-export { createTables, initialdata }
+export { createTables, migrateData }

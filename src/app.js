@@ -1,9 +1,10 @@
 import express from "express";
+import migrateRouter from "./routes/migrate.js";
+import coursesRouter from "./routes/courses.js";
 
 export const app = express();
 
 app.use(express.json())
 
-app.post('/api/simulacro/migrate', (req, res) =>{
-    
-})
+app.use('/api/simulacro', migrateRouter )
+app.use('/api/courses', coursesRouter)

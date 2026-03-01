@@ -98,6 +98,13 @@ export async function queryData() {
                 .on("end", resolve)
                 .on("error", reject);
         });
+        const counters = {
+            contStudents: 0,
+            contCourses: 0,
+            contEnrollments: 0,
+            contProfessors: 0,
+            contDepartments: 0
+        }
         for (const row of result) {
             const studentName = row.student_name.trim().replace(/\s+/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
             const studentEmail = row.student_email.trim().toLowerCase();
@@ -113,38 +120,54 @@ export async function queryData() {
             const tuitionFee = parseInt(row.tuition_fee);
             const amountPaid = parseInt(row.amount_paid);
 
-            await client.query(`
+            const student_result = await client.query(`
                 INSERT INTO "student" ("name", "email", "phone") VALUES ($1, $2, $3) ON CONFLICT ("email")
-                DO NOTHING
+                DO UPDATE SET 
+                    name = EXCLUDED.name
+                returning xmax
                 `, [studentName, studentEmail, studentPhone])
+               
 
-            await client.query(`
+
+            const department_result = await client.query(`
                 INSERT INTO "department" ("name") VALUES ($1) ON CONFLICT ("name")
-                DO NOTHING
+                DO UPDATE SET 
+                    name = EXCLUDED.name
+                returning xmax
                 `, [department])
 
             const departmentId = await client.query(`select id from department where name = $1`, [department])
 
 
-            await client.query(`
+            const professor_result = await client.query(`
                 INSERT INTO "profesor" ("name", "email", "department_id") VALUES ($1, $2, $3) ON CONFLICT ("email")
-                DO NOTHING
+                DO UPDATE SET 
+                    name = EXCLUDED.name
+                returning xmax
                 `, [professorName, professorEmail, departmentId.rows[0].id])
 
             const profesorId = await client.query(`select id from profesor where email = $1`, [professorEmail])
 
-            await client.query(`
+            const course_result = await client.query(`
                 INSERT INTO "course" ("code", "name", "credits", "profesor_id") VALUES ($1, $2, $3, $4) ON CONFLICT ("code")
-                DO NOTHING
+                DO UPDATE SET 
+                    name = EXCLUDED.name
+                returning xmax
                 `, [courseCode, courseName, credits, profesorId.rows[0].id])
 
 
             const studentId = await client.query(`select id from student where email = $1`, [studentEmail.toLowerCase()])
 
 
-            await client.query(`
+            const enrollment_result = await client.query(`
                 INSERT INTO "enrrollments" ("enrolmment_id", "semester", "grade", "tuition_fee", "student_id", "course_code") VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT ("enrolmment_id")
-                DO NOTHING
+                DO UPDATE SET 
+                    semester = EXCLUDED.semester,
+                    grade = EXCLUDED.grade,
+                    tuition_fee = EXCLUDED.tuition_fee,
+                    student_id = EXCLUDED.student_id,
+                    course_code = EXCLUDED.course_code
+                returning xmax
                 `, [row.enrolmment_id, semester, grade, tuitionFee, studentId.rows[0].id, courseCode])
 
 
@@ -176,26 +199,13 @@ export async function queryData() {
                 },
                 { upsert: true }
             )
+            if (student_result.rows[0].xmax === '0') counters.contStudents++;
+            if (course_result.rows[0].xmax === '0') counters.contCourses++;
+            if (enrollment_result.rows[0].xmax === '0') counters.contEnrollments++;
+            if (professor_result.rows[0].xmax === '0') counters.contProfessors++;
+            if (department_result.rows[0].xmax === '0') counters.contDepartments++;
 
-            /*{ 
-                "studentEmail": "j.perez@unigestion.edu",
-                "studentName": "Juan Perez",
-                "academicHistory": [
-                    {
-                        "courseCode": "CS101",
-                        "courseName": "Introducción a la Programación",
-                        "credits": 4,
-                        "semester": "2023-1",
-                        "professorName": "Dra. Ana Silva",
-                        "grade": 4.5,
-                        "status": "Aprobado"
-                    }
-                ],
-                "summary": {
-                    "totalCreditsEarned": 4,
-                    "averageGrade": 4.5
-                }
-            } */
+            
         }
         let totalCredits = await client.query(`
                     select Round(AVG(e.grade),1) as average_grade , s.email , sum(c.credits) as total_credits from student s 
@@ -213,9 +223,11 @@ join course c on e.course_code = c.code group by s.email  ;
                     }
                 }
             );
+
         }
 
         await client.query('COMMIT')
+        return counters
 
     } catch (error) {
         console.log(error);
